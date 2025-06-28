@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Tree Editor</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            margin: 20px auto;
+            max-width: 1400px;
+        }
+        
+        .header-title {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: bold;
+            font-size: 2.5rem;
+        }
+        
+        .paste-area {
+            font-family: 'Courier New', monospace;
+            background: rgba(102, 126, 234, 0.05);
+            border: 2px dashed #667eea;
+            transition: all 0.3s ease;
+        }
+        
+        .paste-area:focus {
+            border-color: #764ba2;
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-gradient-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+        }
+        
+        .btn-gradient-secondary {
+            background: linear-gradient(45deg, #f093fb, #f5576c);
+            border: none;
+            color: white;
+        }
+        
+        .btn-gradient-success {
+            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            border: none;
+            color: white;
+        }
+        
+        .btn-gradient-primary:hover, 
+        .btn-gradient-secondary:hover, 
+        .btn-gradient-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            color: white;
+        }
+        
+        .stats-card {
+            background: rgba(102, 126, 234, 0.1);
+            border: none;
+            border-radius: 12px;
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .tree-container {
+            background: #f8f9fa;
+            border-radius: 12px;
+            max-height: 700px;
+            overflow-y: auto;
+        }
+        
+        .tree-node {
+            margin-bottom: 8px;
+            padding: 4px 0;
+        }
+        
+        .tree-indent {
+            margin-left: 25px;
+            border-left: 2px solid #e9ecef;
+            padding-left: 15px;
+        }
+        
+        .node-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: background-color 0.2s ease;
+        }
+        
+        .node-header:hover {
+            background-color: rgba(102, 126, 234, 0.05);
+        }
+        
+        .collapse-toggle {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: #667eea;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        
+        .collapse-toggle:hover {
+            background: #764ba2;
+        }
+        
+        .tree-key {
+            font-weight: bold;
+            color: #495057;
+            min-width: 120px;
+        }
+        
+        .editable-value {
+            font-family: 'Courier New', monospace;
+            min-width: 120px;
+            transition: all 0.2s ease;
+        }
+        
+        .editable-value:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .editable-value.modified {
+            background-color: #fff3cd;
+            border-color: #ffc107;
+        }
+        
+        .path-indicator {
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            margin-left: auto;
+        }
+        
+        .search-highlight {
+            background-color: yellow;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .tree-type-badge {
+            font-size: 0.7rem;
+        }
+        
+        .loading-spinner {
+            display: none;
+        }
+        
+        .loading .loading-spinner {
+            display: inline-block;
+        }
+        
+        .loading .btn-text {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="main-container p-4">
+            <!-- Header -->
+            <div class="text-center mb-4">
+                <h1 class="header-title">JSON Tree Editor</h1>
+                <p class="text-muted">Parse, edit, and manage JSON documents with ease</p>
+            </div>
+            
+            <!-- JSON Input Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-code-square me-2"></i>JSON Input
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <textarea 
+                        id="jsonInput" 
+                        class="form-control paste-area" 
+                        rows="6" 
+                        placeholder="Paste your JSON document here..."
+                    ></textarea>
+                </div>
+            </div>
+            
+            <!-- Controls -->
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                <button class="btn btn-gradient-primary" onclick="parseJSON()">
+                    <span class="loading-spinner spinner-border spinner-border-sm me-2"></span>
+                    <span class="btn-text">
+                        <i class="bi bi-play-circle me-1"></i>Parse JSON
+                    </span>
+                </button>
+                <button class="btn btn-gradient-secondary" onclick="resetToOriginal()" disabled id="resetBtn">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Reset to Original
+                </button>
+                <button class="btn btn-gradient-success" onclick="copyEditedJSON()" disabled id="copyBtn">
+                    <i class="bi bi-clipboard me-1"></i>Copy Edited JSON
+                </button>
+                <button class="btn btn-outline-primary" onclick="expandAll()" disabled id="expandBtn">
+                    <i class="bi bi-arrows-expand me-1"></i>Expand All
+                </button>
+                <button class="btn btn-outline-secondary" onclick="collapseAll()" disabled id="collapseBtn">
+                    <i class="bi bi-arrows-collapse me-1"></i>Collapse All
+                </button>
+            </div>
+            
+            <!-- Messages -->
+            <div id="messageContainer"></div>
+            
+            <!-- Statistics -->
+            <div id="statsContainer" class="d-none">
+                <div class="card stats-card mb-4">
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3 col-6 mb-3 mb-md-0">
+                                <div class="stat-value" id="totalNodes">0</div>
+                                <small class="text-muted text-uppercase">Total Nodes</small>
+                            </div>
+                            <div class="col-md-3 col-6 mb-3 mb-md-0">
+                                <div class="stat-value text-warning" id="modifiedNodes">0</div>
+                                <small class="text-muted text-uppercase">Modified</small>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="stat-value text-info" id="jsonSize">0</div>
+                                <small class="text-muted text-uppercase">Size (bytes)</small>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="stat-value text-success" id="maxDepth">0</div>
+                                <small class="text-muted text-uppercase">Max Depth</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Search -->
+            <div id="searchContainer" class="d-none mb-3">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input 
+                        type="text" 
+                        class="form-control" 
+                        id="searchInput" 
+                        placeholder="Search keys and values..."
+                        oninput="handleSearch()"
+                    >
+                    <button class="btn btn-outline-secondary" onclick="clearSearch()">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Tree Container -->
+            <div id="treeSection" class="d-none">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-diagram-3 me-2"></i>JSON Tree
+                        </h5>
+                        <span class="badge bg-primary" id="visibleNodesCount">0 nodes</span>
+                    </div>
+                    <div class="card-body tree-container p-3" id="treeContainer">
+                        <!-- Tree will be rendered here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let originalJSON = null;
+        let currentJSON = null;
+        let modifiedPaths = new Set();
+        let collapsedPaths = new Set();
+        let searchTerm = '';
+        
+        function showMessage(text, type = 'danger') {
+            const container = document.getElementById('messageContainer');
+            const alertClass = type === 'error' ? 'danger' : type;
+            
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${alertClass} alert-dismissible fade show fade-in`;
+            alert.innerHTML = `
+                ${text}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            container.appendChild(alert);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        }
+        
+        function updateButtonStates() {
+            const hasJSON = currentJSON !== null;
+            document.getElementById('resetBtn').disabled = !hasJSON;
+            document.getElementById('copyBtn').disabled = !hasJSON;
+            document.getElementById('expandBtn').disabled = !hasJSON;
+            document.getElementById('collapseBtn').disabled = !hasJSON;
+        }
+        
+        function parseJSON() {
+            const input = document.getElementById('jsonInput').value.trim();
+            
+            if (!input) {
+                showMessage('<i class="bi bi-exclamation-triangle me-2"></i>Please paste a JSON document first.', 'warning');
+                return;
+            }
+            
+            // Show loading state
+            const parseBtn = event.target;
+            parseBtn.classList.add('loading');
+            
+            try {
+                originalJSON = JSON.parse(input);
+                currentJSON = JSON.parse(JSON.stringify(originalJSON)); // Deep copy
+                modifiedPaths.clear();
+                collapsedPaths.clear();
+                
+                renderTree();
+                updateStats();
+                updateButtonStates();
+                
+                // Show sections
+                document.getElementById('statsContainer').classList.remove('d-none');
+                document.getElementById('searchContainer').classList.remove('d-none');
+                document.getElementById('treeSection').classList.remove('d-none');
+                
+                showMessage('<i class="bi bi-check-circle me-2"></i>JSON parsed successfully!', 'success');
+            } catch (error) {
+                showMessage(`<i class="bi bi-x-circle me-2"></i>Invalid JSON: ${error.message}`, 'danger');
+            } finally {
+                parseBtn.classList.remove('loading');
+            }
+        }
+        
+        function resetToOriginal() {
+            if (!originalJSON) {
+                showMessage('<i class="bi bi-exclamation-triangle me-2"></i>No JSON loaded to reset.', 'warning');
+                return;
+            }
+            
+            currentJSON = JSON.parse(JSON.stringify(originalJSON));
+            modifiedPaths.clear();
+            renderTree();
+            updateStats();
+            showMessage('<i class="bi bi-check-circle me-2"></i>Reset to original JSON!', 'success');
+        }
+        
+        async function copyEditedJSON() {
+            if (!currentJSON) {
+                showMessage('<i class="bi bi-exclamation-triangle me-2"></i>No JSON to copy.', 'warning');
+                return;
+            }
+            
+            const jsonString = JSON.stringify(currentJSON, null, 2);
+            
+            try {
+                await navigator.clipboard.writeText(jsonString);
+                showMessage('<i class="bi bi-check-circle me-2"></i>JSON copied to clipboard!', 'success');
+            } catch (err) {
+                fallbackCopyTextToClipboard(jsonString);
+            }
+        }
+        
+        function fallbackCopyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            textArea.style.top = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                showMessage('<i class="bi bi-check-circle me-2"></i>JSON copied to clipboard!', 'success');
+            } catch (err) {
+                showMessage('<i class="bi bi-x-circle me-2"></i>Failed to copy JSON to clipboard.', 'danger');
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        function expandAll() {
+            collapsedPaths.clear();
+            renderTree();
+            showMessage('<i class="bi bi-arrows-expand me-2"></i>All nodes expanded!', 'info');
+        }
+        
+        function collapseAll() {
+            // Collapse all object and array nodes
+            collectAllPaths(currentJSON, []);
+            renderTree();
+            showMessage('<i class="bi bi-arrows-collapse me-2"></i>All nodes collapsed!', 'info');
+        }
+        
+        function collectAllPaths(obj, path) {
+            if (typeof obj === 'object' && obj !== null) {
+                if (path.length > 0) { // Don't collapse root
+                    collapsedPaths.add(path.join('.'));
+                }
+                
+                if (Array.isArray(obj)) {
+                    obj.forEach((item, index) => {
+                        collectAllPaths(item, [...path, index]);
+                    });
+                } else {
+                    Object.entries(obj).forEach(([key, value]) => {
+                        collectAllPaths(value, [...path, key]);
+                    });
+                }
+            }
+        }
+        
+        function handleSearch() {
+            searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            renderTree();
+        }
+        
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            searchTerm = '';
+            renderTree();
+        }
+        
+        function getValueAtPath(obj, path) {
+            return path.reduce((current, key) => current && current[key], obj);
+        }
+        
+        function setValueAtPath(obj, path, value) {
+            const pathCopy = [...path];
+            const lastKey = pathCopy.pop();
+            const target = pathCopy.reduce((current, key) => current[key], obj);
+            target[lastKey] = value;
+        }
+        
+        function updateStats() {
+            if (!currentJSON) return;
+            
+            const totalNodes = countNodes(currentJSON);
+            const jsonSize = JSON.stringify(currentJSON).length;
+            const maxDepth = getMaxDepth(currentJSON);
+            
+            document.getElementById('totalNodes').textContent = totalNodes.toLocaleString();
+            document.getElementById('modifiedNodes').textContent = modifiedPaths.size;
+            document.getElementById('jsonSize').textContent = jsonSize.toLocaleString();
+            document.getElementById('maxDepth').textContent = maxDepth;
+        }
+        
+        function countNodes(obj, count = 0) {
+            if (typeof obj === 'object' && obj !== null) {
+                if (Array.isArray(obj)) {
+                    obj.forEach(item => count = countNodes(item, count));
+                } else {
+                    Object.values(obj).forEach(value => count = countNodes(value, count));
+                }
+                return count + 1;
+            }
+            return count + 1;
+        }
+        
+        function getMaxDepth(obj, depth = 0) {
+            if (typeof obj !== 'object' || obj === null) return depth;
+            
+            let maxChildDepth = depth;
+            const values = Array.isArray(obj) ? obj : Object.values(obj);
+            
+            for (const value of values) {
+                const childDepth = getMaxDepth(value, depth + 1);
+                maxChildDepth = Math.max(maxChildDepth, childDepth);
+            }
+            
+            return maxChildDepth;
+        }
+        
+        function renderTree() {
+            const container = document.getElementById('treeContainer');
+            container.innerHTML = '';
+            
+            if (!currentJSON) return;
+            
+            const treeHTML = renderNode(currentJSON, [], 'root');
+            container.innerHTML = treeHTML;
+            
+            // Update visible nodes count
+            const visibleNodes = container.querySelectorAll('.tree-node').length;
+            document.getElementById('visibleNodesCount').textContent = `${visibleNodes} nodes`;
+        }
+        
+        function renderNode(obj, path, key, level = 0) {
+            const pathString = path.join('.');
+            const isCollapsed = collapsedPaths.has(pathString);
+            
+            if (typeof obj === 'object' && obj !== null) {
+                if (Array.isArray(obj)) {
+                    let html = `<div class="tree-node">`;
+                    html += `<div class="node-header">`;
+                    html += `<button class="collapse-toggle" onclick="toggleCollapse('${pathString}')">
+                                ${isCollapsed ? '<i class="bi bi-chevron-right"></i>' : '<i class="bi bi-chevron-down"></i>'}
+                             </button>`;
+                    html += `<span class="tree-key">${highlightSearch(key)}:</span>`;
+                    html += `<span class="badge bg-primary tree-type-badge ms-2">Array[${obj.length}]</span>`;
+                    html += `<span class="badge bg-light text-dark path-indicator">${pathString || 'root'}</span>`;
+                    html += `</div>`;
+                    
+                    if (!isCollapsed) {
+                        html += `<div class="tree-indent">`;
+                        obj.forEach((item, index) => {
+                            if (shouldShowNode([...path, index], `[${index}]`, item)) {
+                                html += renderNode(item, [...path, index], `[${index}]`, level + 1);
+                            }
+                        });
+                        html += `</div>`;
+                    }
+                    
+                    html += `</div>`;
+                    return html;
+                } else {
+                    const keys = Object.keys(obj);
+                    let html = `<div class="tree-node">`;
+                    html += `<div class="node-header">`;
+                    html += `<button class="collapse-toggle" onclick="toggleCollapse('${pathString}')">
+                                ${isCollapsed ? '<i class="bi bi-chevron-right"></i>' : '<i class="bi bi-chevron-down"></i>'}
+                             </button>`;
+                    html += `<span class="tree-key">${highlightSearch(key)}:</span>`;
+                    html += `<span class="badge bg-info tree-type-badge ms-2">Object{${keys.length}}</span>`;
+                    html += `<span class="badge bg-light text-dark path-indicator">${pathString || 'root'}</span>`;
+                    html += `</div>`;
+                    
+                    if (!isCollapsed) {
+                        html += `<div class="tree-indent">`;
+                        keys.forEach(objKey => {
+                            if (shouldShowNode([...path, objKey], objKey, obj[objKey])) {
+                                html += renderNode(obj[objKey], [...path, objKey], objKey, level + 1);
+                            }
+                        });
+                        html += `</div>`;
+                    }
+                    
+                    html += `</div>`;
+                    return html;
+                }
+            } else {
+                // Leaf node (primitive value)
+                const fullPath = [...path].join('.');
+                const isModified = modifiedPaths.has(fullPath);
+                const value = obj === null ? 'null' : obj;
+                const type = obj === null ? 'null' : typeof obj;
+                
+                let html = `<div class="tree-node">`;
+                html += `<div class="node-header">`;
+                html += `<div style="width: 24px;"></div>`; // Spacer for alignment
+                html += `<span class="tree-key">${highlightSearch(key)}:</span>`;
+                html += `<div class="flex-grow-1 d-flex align-items-center gap-2">`;
+                html += `<input type="text" 
+                           class="form-control form-control-sm editable-value${isModified ? ' modified' : ''}" 
+                           value="${escapeHtml(String(value))}" 
+                           data-path="${fullPath}"
+                           data-type="${type}"
+                           onchange="updateValue(this)"
+                           onkeypress="handleKeyPress(event, this)">`;
+                html += `<span class="badge bg-secondary tree-type-badge">${type}</span>`;
+                html += `</div>`;
+                html += `<span class="badge bg-light text-dark path-indicator">${fullPath}</span>`;
+                html += `</div>`;
+                html += `</div>`;
+                
+                return html;
+            }
+        }
+        
+        function shouldShowNode(path, key, value) {
+            if (!searchTerm) return true;
+            
+            // Check if key matches search
+            if (key.toLowerCase().includes(searchTerm)) return true;
+            
+            // Check if value matches search (for primitive values)
+            if (typeof value !== 'object' || value === null) {
+                if (String(value).toLowerCase().includes(searchTerm)) return true;
+            }
+            
+            // Check if any nested value matches (for objects/arrays)
+            return hasNestedMatch(value, searchTerm);
+        }
+        
+        function hasNestedMatch(obj, term) {
+            if (typeof obj !== 'object' || obj === null) {
+                return String(obj).toLowerCase().includes(term);
+            }
+            
+            if (Array.isArray(obj)) {
+                return obj.some(item => hasNestedMatch(item, term));
+            } else {
+                return Object.entries(obj).some(([key, value]) => 
+                    key.toLowerCase().includes(term) || hasNestedMatch(value, term)
+                );
+            }
+        }
+        
+        function highlightSearch(text) {
+            if (!searchTerm) return text;
+            
+            const regex = new RegExp(`(${searchTerm})`, 'gi');
+            return text.replace(regex, '<span class="search-highlight">$1</span>');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function handleKeyPress(event, element) {
+            if (event.key === 'Enter') {
+                element.blur();
+            }
+        }
+        
+        function toggleCollapse(pathString) {
+            if (collapsedPaths.has(pathString)) {
+                collapsedPaths.delete(pathString);
+            } else {
+                collapsedPaths.add(pathString);
+            }
+            renderTree();
+        }
+        
+        function updateValue(element) {
+            const path = element.dataset.path.split('.').filter(p => p !== '');
+            const type = element.dataset.type;
+            let newValue = element.value;
+            
+            // Convert value based on original type
+            try {
+                if (type === 'number') {
+                    newValue = parseFloat(newValue);
+                    if (isNaN(newValue)) {
+                        throw new Error('Invalid number');
+                    }
+                } else if (type === 'boolean') {
+                    newValue = newValue.toLowerCase() === 'true';
+                } else if (newValue === 'null') {
+                    newValue = null;
+                }
+                
+                // Update the current JSON
+                setValueAtPath(currentJSON, [...path], newValue);
+                
+                // Track modification
+                const pathString = path.join('.');
+                const originalValue = getValueAtPath(originalJSON, [...path]);
+                
+                if (JSON.stringify(newValue) !== JSON.stringify(originalValue)) {
+                    modifiedPaths.add(pathString);
+                    element.classList.add('modified');
+                } else {
+                    modifiedPaths.delete(pathString);
+                    element.classList.remove('modified');
+                }
+                
+                updateStats();
+                
+            } catch (error) {
+                showMessage(`<i class="bi bi-x-circle me-2"></i>Invalid value for ${type}: ${error.message}`, 'danger');
+                // Revert to previous value
+                const currentValue = getValueAtPath(currentJSON, [...path]);
+                element.value = currentValue === null ? 'null' : String(currentValue);
+            }
+        }
+        
+        // Auto-parse if there's content in the textarea on page load
+        window.addEventListener('load', () => {
+            const input = document.getElementById('jsonInput');
+            if (input.value.trim()) {
+                parseJSON();
+            }
+        });
+    </script>
+</body>
+</html>
